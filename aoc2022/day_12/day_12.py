@@ -26,9 +26,9 @@ if __name__ == "__main__":
 
     advance = list()
     advance.append(list())
-    advance[-1].append(start_pos)
+    advance[-1].append(goal_pos)
     visited = list()
-    visited.append(start_pos)
+    visited.append(goal_pos)
 
     def explore(pos):
         i = pos[0]
@@ -47,13 +47,20 @@ if __name__ == "__main__":
 
         for target in to_explore:
             if target not in visited:
-                if height[target[0], target[1]] <= current_height + 1:
+                if height[target[0], target[1]] >= current_height - 1:
                     advance[-1].append([target[0], target[1]])
                     visited.append([target[0], target[1]])
 
-
     ctr = 0
-    while goal_pos not in advance[-1]:
+
+    def reached_lowest(phase):
+        for pos in phase:
+            if height[pos[0], pos[1]] == 0:
+                return True
+        return False
+
+    while not reached_lowest(advance[-1]):
+    # while start_pos not in advance[-1]:
         advance.append(list())
         for pos in advance[-2]:
             explore(pos)
@@ -71,16 +78,6 @@ if __name__ == "__main__":
         #             # print(data[i][j], end="")
         #             print(".", end="")
         #     print()
-        # print(goal_pos)
-        # print(advance[-1])
         # input()
     
     print(len(advance) - 1)
-
-    ctr = 0
-    for i in range(len(advance) - 1, 0, -1):
-        ctr = ctr + 1
-        for entry in advance[i]:
-            if height[entry[0], entry[1]] == 0:
-                print(ctr + 1)
-                exit(0)
