@@ -52,70 +52,28 @@ if __name__ == "__main__":
             g.add_edge(name_to_id[v.name], name_to_id[t])
 
 
-    def compute_prio(current_valve, target_valve):
-        path = g.get_shortest_paths(name_to_id[current_valve.name], to=name_to_id[target_valve.name], output="vpath")
-        length = len(path[0]) - 1
-        return (26 - length) * target_valve.flow_rate, target_valve.flow_rate, length
-
-
-    def get_next_prio(current_valve, valves_to_sort):
-        valves_prio = [compute_prio(current_valve, v) for v in valves_to_sort]
-        out = list(reversed(sorted(zip(valves_prio, valves_to_sort), key=lambda x: x[0][0])))
-        # for v in out:
-        #     print(v)
-        return out[0][1]
-
-
     valves_to_open = deepcopy(valves_sorted)
     valves_to_open = list(filter(lambda x: x.flow_rate > 0, valves_to_open))
-    print(valves_to_open)
+    
+    path_length = dict()
+    for i in range(len(valves_to_open)):
+        v1 = valves_to_open[i]
+        id1 = name_to_id[v1.name]
 
-    def advance_time(t, fr, released):
-        released += fr
-        t += 1
-        return t, released
+        for j in range(len(valves_to_open)):
+            if i != j:
+                v2 = valves_to_open[j]
+                id2 = name_to_id[v2.name]
+                path = g.get_shortest_paths(id1, id2, output="vpath")
+                path_length[v1.name, v2.name] = len(path[0]) - 1
+        
+        id0 = name_to_id["AA"]
+        path = g.get_shortest_paths(id0, id1, output="vpath")
+        path_length["AA", v1.name] = len(path[0]) - 1
+        
 
-    def compute_total_pressure_released(current_valves, log=False):
-        valves = deepcopy(current_valves)
-        time = 0
-        current = start
-        current_flow_rate = 0
-        pressure_released = 0
-
-        while (time < 30):
-            if valves:
-                # next_to_open = get_next_prio(current, valves)
-                next_to_open = valves[0]
-                # if log:
-                #     print(f"Next to open: {next_to_open.name}")
-
-                path = g.get_shortest_paths(name_to_id[current.name], to=name_to_id[next_to_open.name], output="vpath")
-
-                for p in path[0][1:]:
-                    time, pressure_released = advance_time(time, current_flow_rate, pressure_released)
-                    if log:
-                        print(f"Min {time}")
-                        print(f"Moving to valve {id_to_name[p]}")
-                        print(f"Releasing pressure: {current_flow_rate}")
-                        print(f"Total released: {pressure_released}\n")
-
-                time, pressure_released = advance_time(time, current_flow_rate, pressure_released)
-                if log:
-                    print(f"Min {time}")
-                    print(f"Opening valve {next_to_open.name}")
-                    print(f"Releasing pressure: {current_flow_rate}")
-                    print(f"Total released: {pressure_released}\n")
-                current_flow_rate += next_to_open.flow_rate
-                valves.remove(next_to_open)
-                current = next_to_open
-            else:
-                time, pressure_released = advance_time(time, current_flow_rate, pressure_released)
-                if log:
-                    print(f"Min {time}")
-                    print(f"Releasing pressure: {current_flow_rate}")
-                    print(f"Total released: {pressure_released}\n")
-
-        return pressure_released
+    # for n in path_length:
+    #     print(f"{n[0]} to {n[1]} = {path_length[n]}")
 
 
     def mutate(valves):
@@ -126,33 +84,65 @@ if __name__ == "__main__":
         out[i1], out[i2] = out[i2], out[i1]
         return out
 
+    def compute_cost(first, valves):
+        remaining_time = 26
+        released = 0
+        current = first
+        for v in valves:
+            time_to_move = path_length[current.name, v.name]
+            if remaining_time > time_to_move + 1:
+                time_spent = path_length[current.name, v.name] + 1
+                remaining_time -= time_spent
+                released += remaining_time * v.flow_rate
+                current = v
+        return released
 
-    # print([v.name for v in valves])
-    # valves = mutate(valves)
-    # print([v.name for v in valves])
+    def compute_cost2(first, valves1, valves2):
+        return compute_cost(first, valves1) + compute_cost(first, valves2)
 
 
-    best_valves = deepcopy(valves_to_open)
-    # best_valves = [
-    #     valves_to_open[2],
-    #     valves_to_open[3],
-    #     valves_to_open[1],
-    #     valves_to_open[0],
-    #     valves_to_open[4],
-    #     valves_to_open[5],
-    # ]
-    # print([v.name for v in best_valves])
-    best = compute_total_pressure_released(best_valves)
-    print(best)
+    def cross_mutate(valves1, valves2):
+        out1 = deepcopy(valves1)
+        out2 = deepcopy(valves2)
+        l1 = len(out1)
+        l2 = len(out2)
+        i1 = random.randint(0, l1 - 1)
+        i2 = random.randint(0, l2 - 1)
+        out1[i1], out2[i2] = out2[i2], out1[i1]
+        return out1, out2
 
-    for i in range(10000):
-        valves = mutate(best_valves)
-        # print([v.name for v in valves])
-        pres = compute_total_pressure_released(valves)
-        if pres > best:
-            best = pres
-            best_valves = deepcopy(valves)
-            [print(v) for v in best_valves]
-            print(best)
 
-    print(compute_total_pressure_released(best_valves, log=True))
+    def mutate2(valves1, valves2):
+        valves1 = mutate(valves1)
+        valves2 = mutate(valves2)
+        valves1, valves2 = cross_mutate(valves1, valves2)
+        return valves1, valves2
+
+
+    best_best = 0
+    for k in range(100):
+        best_valves = deepcopy(valves_to_open)
+        random.shuffle(best_valves)
+        best = compute_cost(start, best_valves)
+        best_valves_1 = []
+        best_valves_2 = []
+        for v in best_valves:
+            best_valves_1.append(v) if bool(random.getrandbits(1)) else best_valves_2.append(v)
+
+
+        for i in range(10000):
+            valves_1, valves_2 = mutate2(best_valves_1, best_valves_2)
+            # print([v.name for v in valves])
+            pres = compute_cost2(start, valves_1, valves_2)
+            if pres > best:
+                best = pres
+                best_valves_1 = deepcopy(valves_1)
+                best_valves_2 = deepcopy(valves_2)
+                # [print(v) for v in best_valves]
+
+        b = compute_cost2(start, best_valves_1, best_valves_2)
+        if b > best_best:
+            best_best = b
+            print(b)
+    
+    print(best_best)
